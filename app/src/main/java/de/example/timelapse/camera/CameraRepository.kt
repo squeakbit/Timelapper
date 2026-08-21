@@ -1,0 +1,28 @@
+package de.example.timelapse.camera
+
+import android.content.Context
+import android.hardware.camera2.CameraCharacteristics
+import android.hardware.camera2.CameraManager
+import android.graphics.ImageFormat
+
+class CameraRepository(private val context: Context) {
+    private val manager = context.getSystemService(CameraManager::class.java)
+
+    fun list(): List<CameraInfo> =
+        manager.cameraIdList.mapNotNull { id ->
+            val c = manager.getCameraCharacteristics(id)
+            val map = c.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
+                ?: return@mapNotNull null
+            val facing = c.get(CameraCharacteristics.LENS_FACING)
+                ?: CameraCharacteristics.LENS_FACING_EXTERNAL
+            val caps = c.get(CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES) ?: intArrayOf()
+            val logical = caps.contains(
+                CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES_LOGICAL_MULTI_CAMERA
+            )
+            val sizes = map.getOutputSizes(ImageFormat.JPEG)
+                ?.map { SizeOption(it.width, it.height) }
+                ?.sortedWith(compareByDescending<SizeOption> { it.width.toLong() * it.height }.thenByDescending { it.width })
+                ?: emptyList()
+            CameraInfo(id, facing, logical, sizes)
+        }
+}
